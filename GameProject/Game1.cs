@@ -16,8 +16,7 @@ namespace GameProject
         GraphicsDeviceManager graphics;
         SpriteBatch spriteBatch;
 
-        // game objects. Using inheritance would make this
-        // easier, but inheritance isn't a GDD 1200 topic
+
         Burger burger;
         List<TeddyBear> bears = new List<TeddyBear>();
         static List<Projectile> projectiles = new List<Projectile>();
@@ -29,12 +28,11 @@ namespace GameProject
         static Texture2D teddyBearProjectileSprite;
         static Texture2D explosionSpriteStrip;
 
-        //click support
+        //possible click support
         //ButtonState previousButtonState = ButtonState.Released;
 
         //random c support
         //Random rand = new Random();
-        //Texture2D[] characters = new Texture2D[4];
         List<Texture2D> charectersList = new List<Texture2D>();
 
         // scoring support

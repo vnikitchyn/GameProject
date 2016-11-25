@@ -152,10 +152,7 @@ namespace GameProject
                     canShoot = true;
                     elapsedCooldownMilliseconds = 0;
                 } 
-
             }
-
-
         }
 
         /// <summary>
