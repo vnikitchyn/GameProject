@@ -51,6 +51,8 @@
     <Compile Include="ProjectileType.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RandomNumberGenerator.cs" />
+    <Compile Include="models\ScoreTable.cs" />
+    <Compile Include="models\ScoreValues.cs" />
     <Compile Include="TeddyBear.cs" />
   </ItemGroup>
   <ItemGroup>

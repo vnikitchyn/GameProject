@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Input;
 
 namespace GameProject
 {
@@ -13,8 +14,8 @@ namespace GameProject
     public static class GameConstants
     {
         // resolution
-        public const int WindowWidth = 800;
-        public const int WindowHeight = 600;
+        public const int WindowWidth = 1024;
+        public const int WindowHeight = 720;
 
         // projectile characteristics
         public const float TeddyBearProjectileSpeed = 0.3f;
@@ -46,7 +47,7 @@ namespace GameProject
         public const int ExplosionTotalFrameMilliseconds = 10;
 
         // display support
-        const int DisplayOffset = 35;
+        public const int DisplayOffset = 35;
         public const string ScorePrefix = "Score: ";
         public static readonly Vector2 ScoreLocation =
             new Vector2(DisplayOffset, DisplayOffset);
@@ -54,7 +55,13 @@ namespace GameProject
         public static readonly Vector2 HealthLocation =
             new Vector2(DisplayOffset, 2 * DisplayOffset);
 
+        public static readonly Vector2 ScoreTableLocation =
+            new Vector2(DisplayOffset, 3 * DisplayOffset);
+
         // spawn location support
         public const int SpawnBorderSize = 100;
+
+
+
     }
 }

@@ -5,6 +5,9 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using System.Linq;
+using System.Xml.Serialization;
+using System.IO;
 
 namespace GameProject
 {
@@ -28,16 +31,29 @@ namespace GameProject
         static Texture2D teddyBearProjectileSprite;
         static Texture2D explosionSpriteStrip;
 
-        //possible click support
-        //ButtonState previousButtonState = ButtonState.Released;
+        //possible click and keyboard support
+
+        string text;
+        Keys[] keysToCheck 
+            = new Keys[] {
+                          Keys.A, Keys.B, Keys.C, Keys.D, Keys.E,
+                          Keys.F, Keys.G, Keys.H, Keys.I, Keys.J,
+                          Keys.K, Keys.L, Keys.M, Keys.N, Keys.O,
+                          Keys.P, Keys.Q, Keys.R, Keys.S, Keys.T,
+                          Keys.U, Keys.V, Keys.W, Keys.X, Keys.Y,
+                          Keys.Z, Keys.Back, Keys.Space };
+
+        KeyboardState currentKeyboardState;
+        KeyboardState lastKeyboardState;
 
         //random c support
         //Random rand = new Random();
         List<Texture2D> charectersList = new List<Texture2D>();
 
         // scoring support
-        int score = 0;
+        static int score = 0;
         string scoreString;
+        ScoreTable scoreTable;
 
         // health support
         string healthString = GameConstants.HealthPrefix +
@@ -48,9 +64,10 @@ namespace GameProject
         // text display support
         SpriteFont font;
         SpriteFont fontGameOver;
-        List<Message> messages = new List<Message>();
+        List<Message> messages;
         Message healthMessage;
         Message scoreMessage;
+        Message eventMessage;
 
         // sound effects
         SoundEffect fon;
@@ -81,8 +98,8 @@ namespace GameProject
         protected override void Initialize()
         {
             RandomNumberGenerator.Initialize();
-
             base.Initialize();
+
         }
 
         /// <summary>
@@ -115,7 +132,8 @@ namespace GameProject
             font = Content.Load<SpriteFont>(@"fonts\Arial20");
             fontGameOver = Content.Load<SpriteFont>(@"fonts\Arial30");
 
-            // score string
+            // score string and m
+            messages = new List<Message>();
             scoreString = GameConstants.ScorePrefix + score;
             gameOver = "GAME OVER";
 
@@ -138,6 +156,10 @@ namespace GameProject
             healthMessage = new Message(healthString,font, GameConstants.HealthLocation);
             scoreMessage = new Message(scoreString, font, GameConstants.ScoreLocation);
             messages.AddRange(new Message []{ healthMessage, scoreMessage});
+
+            // score xml ser init
+            scoreTable = new ScoreTable();
+            scoreTable.ScoreList = new List<ScoreValues>();
         }
 
         /// <summary>
@@ -149,6 +171,7 @@ namespace GameProject
             // TODO: Unload any non ContentManager content here
         }
 
+
         /// <summary>
         /// Allows the game to run logic such as updating the world,
         /// checking for collisions, gathering input, and playing audio.
@@ -157,17 +180,24 @@ namespace GameProject
         protected override void Update(GameTime gameTime)
         {
             // get current mouse\keyboard state and update burger
-            KeyboardState keyboard = Keyboard.GetState();
+            KeyboardState currentKeyboardState = Keyboard.GetState();
             MouseState mouse = Mouse.GetState();
-            burger.Update(gameTime, mouse, keyboard);
+            if (burger!=null)
+            burger.Update(gameTime, mouse, currentKeyboardState);
 
-            if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || keyboard.IsKeyDown(Keys.Escape))
+            if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || currentKeyboardState.IsKeyDown(Keys.Escape))
                 Exit();
 
+            //
+
+
             // update other game objects
-            foreach (TeddyBear bear in bears)
+            if (bears.Any())
             {
-                bear.Update(gameTime);
+                foreach (TeddyBear bear in bears)
+                {
+                    bear.Update(gameTime);
+                }
             }
             foreach (Projectile projectile in projectiles)
             {
@@ -179,35 +209,38 @@ namespace GameProject
             }
 
             // check and resolve collisions between teddy bears
-            for (int i = 0; i < bears.Count; i++)
+            if (bears.Any() && burger != null)
             {
-                for (int j = i + 1; j < bears.Count; j++)
+                for (int i = 0; i < bears.Count; i++)
                 {
-                    if (bears[i].Active && bears[j].Active)
+                    for (int j = i + 1; j < bears.Count; j++)
                     {
-                        CollisionResolutionInfo collisitionResInfo = CollisionUtils.CheckCollision(gameTime.ElapsedGameTime.Milliseconds,
-                            GameConstants.WindowWidth, GameConstants.WindowHeight,
-                            bears[i].Velocity, bears[i].DrawRectangle, bears[j].Velocity, bears[j].DrawRectangle);
-                        if (collisitionResInfo != null)
+                        if (bears[i].Active && bears[j].Active)
                         {
-                            // 1 bear check and bounce if needed
-                            if (collisitionResInfo.FirstOutOfBounds)
-                                bears[i].Active = false;
-                            else
+                            CollisionResolutionInfo collisitionResInfo = CollisionUtils.CheckCollision(gameTime.ElapsedGameTime.Milliseconds,
+                                GameConstants.WindowWidth, GameConstants.WindowHeight,
+                                bears[i].Velocity, bears[i].DrawRectangle, bears[j].Velocity, bears[j].DrawRectangle);
+                            if (collisitionResInfo != null)
                             {
-                                bears[i].Velocity = collisitionResInfo.FirstVelocity;
-                                bears[i].DrawRectangle = collisitionResInfo.FirstDrawRectangle;
-                                teddyBounce.Play();
-                            }
+                                // 1 bear check and bounce if needed
+                                if (collisitionResInfo.FirstOutOfBounds)
+                                    bears[i].Active = false;
+                                else
+                                {
+                                    bears[i].Velocity = collisitionResInfo.FirstVelocity;
+                                    bears[i].DrawRectangle = collisitionResInfo.FirstDrawRectangle;
+                                    teddyBounce.Play();
+                                }
 
-                            // 2 bear check and bounce if needed
-                            if (collisitionResInfo.SecondOutOfBounds)
-                                bears[j].Active = false;
-                            else
-                            {
-                                bears[j].Velocity = collisitionResInfo.SecondVelocity;
-                                bears[j].DrawRectangle = collisitionResInfo.SecondDrawRectangle;
-                                teddyBounce.Play();
+                                // 2 bear check and bounce if needed
+                                if (collisitionResInfo.SecondOutOfBounds)
+                                    bears[j].Active = false;
+                                else
+                                {
+                                    bears[j].Velocity = collisitionResInfo.SecondVelocity;
+                                    bears[j].DrawRectangle = collisitionResInfo.SecondDrawRectangle;
+                                    teddyBounce.Play();
+                                }
                             }
                         }
                     }
@@ -216,67 +249,71 @@ namespace GameProject
 
 
             //a collision between the burger and each projectile 
-            foreach (Projectile projectile in projectiles)
+            if (bears.Any() && burger != null)
             {
-                if (projectile.Type == ProjectileType.TeddyBear
-                    && burger.CollisionRectangle.Intersects(projectile.CollisionRectangle)
-                     && projectile.Active && !burgerDead)
+                foreach (Projectile projectile in projectiles)
                 {
-                    projectile.Active = false;
-                    explosions.Add(new Explosion(explosionSpriteStrip, burger.CollisionRectangle.Center.X, burger.CollisionRectangle.Center.Y));
-                    explosion.Play();
-                    burger.Health -= GameConstants.TeddyBearProjectileDamage;
-                    messages.Remove(healthMessage);
-                    healthMessage = new Message(GameConstants.HealthPrefix + burger.Health, font, GameConstants.HealthLocation);
-                    messages.Add(healthMessage);
-                    CheckBurgerKill();
-                }
-            }
-
-            // bear collisisons check
-            foreach (TeddyBear bear in bears)
-            {
-                if (bear.Active)
-                {
-                    // check and resolve collisions between burger and teddy bears
-                    if (burger.CollisionRectangle.Intersects(bear.CollisionRectangle)&&!burgerDead)
+                    if (projectile.Type == ProjectileType.TeddyBear
+                        && burger.CollisionRectangle.Intersects(projectile.CollisionRectangle)
+                         && projectile.Active && !burgerDead)
                     {
-                        score++;
-                        burger.Health -= GameConstants.BearDamage;
-                        messages.Clear();
-                        healthMessage = new Message(GameConstants.HealthPrefix + burger.Health, font, GameConstants.HealthLocation);
-                        scoreMessage = new Message(GetScoreString(score), font, GameConstants.ScoreLocation);
-                        messages.AddRange(new Message[] { healthMessage, scoreMessage });
-                        bear.Active = false;
-                        explosions.Add(new Explosion(explosionSpriteStrip, bear.Location.X, bear.Location.Y));
+                        projectile.Active = false;
+                        explosions.Add(new Explosion(explosionSpriteStrip, burger.CollisionRectangle.Center.X, burger.CollisionRectangle.Center.Y));
                         explosion.Play();
+                        burger.Health -= GameConstants.TeddyBearProjectileDamage;
+                        messages.Remove(healthMessage);
+                        healthMessage = new Message(GameConstants.HealthPrefix + burger.Health, font, GameConstants.HealthLocation);
+                        messages.Add(healthMessage);
                         CheckBurgerKill();
                     }
-
-                    // check and resolve collisions between teddy bears and projectiles
-                    else
+                }
+            }
+            // bear collisisons check
+            if (bears.Any()&& burger != null)
+            {
+                for (int i = 0; i < bears.Count; i++)
+                {
+                    if (bears[i].Active)
                     {
-                        foreach (Projectile projectile in projectiles)
+                        // check and resolve collisions between burger and teddy bears
+                        if (burger.CollisionRectangle.Intersects(bears[i].CollisionRectangle) && !burgerDead)
                         {
-                            if (projectile.Type == ProjectileType.FrenchFries
-                                && bear.DrawRectangle.Intersects(projectile.CollisionRectangle)
-                                && bear.Active && projectile.Active)
+                            score++;
+                            burger.Health -= GameConstants.BearDamage;
+                            messages.Clear();
+                            healthMessage = new Message(GameConstants.HealthPrefix + burger.Health, font, GameConstants.HealthLocation);
+                            scoreMessage = new Message(GetScoreString(score), font, GameConstants.ScoreLocation);
+                            messages.AddRange(new Message[] { healthMessage, scoreMessage });
+                            bears[i].Active = false;
+                            explosions.Add(new Explosion(explosionSpriteStrip, bears[i].Location.X, bears[i].Location.Y));
+                            explosion.Play();
+                            CheckBurgerKill();
+                        }
+
+                        // check and resolve collisions between teddy bears and projectiles
+                        else
+                        {
+                            foreach (Projectile projectile in projectiles)
                             {
-                                score+=GameConstants.BearPoints;
-                                messages.Remove(scoreMessage);
-                                GetScoreString(score);
-                                scoreMessage = new Message(GetScoreString(score), font, GameConstants.ScoreLocation);
-                                messages.Add(scoreMessage);
-                                bear.Active = false;
-                                projectile.Active = false;
-                                explosions.Add(new Explosion(explosionSpriteStrip, bear.Location.X, bear.Location.Y));
-                                explosion.Play();
+                                if (projectile.Type == ProjectileType.FrenchFries
+                                    && bears[i].DrawRectangle.Intersects(projectile.CollisionRectangle)
+                                    && bears[i].Active && projectile.Active)
+                                {
+                                    score += GameConstants.BearPoints;
+                                    messages.Remove(scoreMessage);
+                                    GetScoreString(score);
+                                    scoreMessage = new Message(GetScoreString(score), font, GameConstants.ScoreLocation);
+                                    messages.Add(scoreMessage);
+                                    bears[i].Active = false;
+                                    projectile.Active = false;
+                                    explosions.Add(new Explosion(explosionSpriteStrip, bears[i].Location.X, bears[i].Location.Y));
+                                    explosion.Play();
+                                }
                             }
                         }
                     }
                 }
             }
-
 
             // clean out inactive teddy bears and add new ones as necessary
             for (int i = bears.Count - 1; i >= 0; i--)
@@ -288,7 +325,7 @@ namespace GameProject
             }
 
             // adding bear to max value
-            while (bears.Count<GameConstants.MaxBears)
+            while (bears.Count<GameConstants.MaxBears&&burger!=null)
             {
                 SpawnBear();
             }
@@ -311,6 +348,7 @@ namespace GameProject
                 }
             }
 
+            lastKeyboardState = currentKeyboardState;
             base.Update(gameTime);
         }
 
@@ -321,16 +359,22 @@ namespace GameProject
         /// <param name="gameTime">Provides a snapshot of timing values.</param>
         protected override void Draw(GameTime gameTime)
         {
-            GraphicsDevice.Clear(Color.CornflowerBlue);
+            GraphicsDevice.Clear(Color.LightSlateGray);
 
             spriteBatch.Begin();
 
             // draw game objects
+            if (burger!=null)
             burger.Draw(spriteBatch);
-            foreach (TeddyBear bear in bears)
+
+            if (bears.Any())
             {
-                bear.Draw(spriteBatch);
+                foreach (TeddyBear bear in bears)
+                {
+                    bear.Draw(spriteBatch);
+                }
             }
+
             foreach (Projectile projectile in projectiles)
             {
                 projectile.Draw(spriteBatch);
@@ -344,10 +388,16 @@ namespace GameProject
             foreach (Message message in messages)
             {
                 if (!burgerDead)
-                    message.Draw(spriteBatch, Color.Wheat);
+                    message.Draw(spriteBatch, Color.Wheat);                
             }
-                if (burgerDead)          
-                messages[0].Draw(spriteBatch, Color.Red);
+            if (burgerDead)
+            {
+                eventMessage.Draw(spriteBatch, Color.Red);
+                foreach (Message message in messages)
+                    message.Draw(spriteBatch, Color.Beige);
+
+            }
+
 
             //alt way
             //spriteBatch.DrawString(font,scoreString, GameConstants.ScoreLocation, Color.Wheat);
@@ -417,16 +467,18 @@ namespace GameProject
 
             // make sure we don't spawn into a collision
             List <Rectangle> collisions = GetCollisionRectangles();
-            while (!CollisionUtils.IsCollisionFree(newBear.DrawRectangle,collisions))
-            {
-                int newXBearRandom = GetRandomLocation(GameConstants.SpawnBorderSize, GameConstants.WindowWidth - GameConstants.SpawnBorderSize * 2 - Content.Load<Texture2D>(@"graphics\teddybear").Width);
-                int newYBearRandom = GetRandomLocation(GameConstants.SpawnBorderSize, GameConstants.WindowHeight - GameConstants.SpawnBorderSize * 2 - Content.Load<Texture2D>(@"graphics\teddybear").Height);
-                newBear.X = newXBearRandom;
-                newBear.Y = newYBearRandom;
-                
-                //alternate way ()instead of 2 above statements:
-                //newBear = new TeddyBear(Content, @"graphics\teddybear", newXBearRandom, newYBearRandom, velocityBear, null, null);
-            }
+
+                while (!CollisionUtils.IsCollisionFree(newBear.DrawRectangle, collisions))
+                {
+                    int newXBearRandom = GetRandomLocation(GameConstants.SpawnBorderSize, GameConstants.WindowWidth - GameConstants.SpawnBorderSize * 2 - Content.Load<Texture2D>(@"graphics\teddybear").Width);
+                    int newYBearRandom = GetRandomLocation(GameConstants.SpawnBorderSize, GameConstants.WindowHeight - GameConstants.SpawnBorderSize * 2 - Content.Load<Texture2D>(@"graphics\teddybear").Height);
+                    newBear.X = newXBearRandom;
+                    newBear.Y = newYBearRandom;
+
+                    //alternate way ()instead of 2 above statements:
+                    //newBear = new TeddyBear(Content, @"graphics\teddybear", newXBearRandom, newYBearRandom, velocityBear, null, null);
+                }
+            
 
             // add new bear to list
             bears.Add(newBear);
@@ -450,21 +502,30 @@ namespace GameProject
         /// <returns>the list of collision rectangles</returns>
         private List<Rectangle> GetCollisionRectangles()
         {
-            List<Rectangle> collisionRectangles = new List<Rectangle>();
-            collisionRectangles.Add(burger.CollisionRectangle);
-            foreach (TeddyBear bear in bears)
-            {
-                collisionRectangles.Add(bear.CollisionRectangle);
-            }
-            foreach (Projectile projectile in projectiles)
-            {
-                collisionRectangles.Add(projectile.CollisionRectangle);
-            }
-            foreach (Explosion explosion in explosions)
-            {
-                collisionRectangles.Add(explosion.CollisionRectangle);
-            }
-            return collisionRectangles;
+        
+            
+                List<Rectangle> collisionRectangles = new List<Rectangle>();
+                if (burger != null)
+                    collisionRectangles.Add(burger.CollisionRectangle);
+
+                if (bears.Any())
+                {
+                    foreach (TeddyBear bear in bears)
+                    {
+                        collisionRectangles.Add(bear.CollisionRectangle);
+                    }
+                }
+                foreach (Projectile projectile in projectiles)
+                {
+                    collisionRectangles.Add(projectile.CollisionRectangle);
+                }
+                foreach (Explosion explosion in explosions)
+                {
+                    collisionRectangles.Add(explosion.CollisionRectangle);
+                }
+                return collisionRectangles;
+            
+      
         }
 
         /// <summary>
@@ -475,17 +536,200 @@ namespace GameProject
             if (burger.Health<=0&&!burgerDead)
             {
                 burgerDeath.Play();
-                font.Spacing = 3;
-                messages.Clear();
-                messages.Add(new Message(gameOver,font,new Vector2(GameConstants.WindowWidth / 2 - font.Texture.Width/2+font.Texture.Width / 8, GameConstants.WindowHeight/2 - font.Texture.Height / 8)));           
+                fontGameOver.Spacing = 3;
+                ClearTable();
+                eventMessage =new Message(gameOver,fontGameOver,new Vector2(GameConstants.WindowWidth / 2 - font.Texture.Width/2+font.Texture.Width / 8, GameConstants.WindowHeight/2 - font.Texture.Height / 8));
                 burgerDead = true;
+                SaveScore(Environment.UserName, @".\results.xml" ); // UserName should be replaced with input
+              
+                messages.Add(new Message(string.Format("Your finally score result is: {0}", score), font, GameConstants.ScoreLocation));
+
+                scoreTable = LoadScore(@".\results.xml");
+                int scoreValuesCount = 3;
+
+                Vector2 scoreLocation = new Vector2(GameConstants.DisplayOffset, scoreValuesCount * GameConstants.DisplayOffset);
+                messages.Add(new Message(string.Format("Score table results: "), font, scoreLocation));
+                foreach (ScoreValues score in scoreTable.ScoreList)
+                {
+                    scoreValuesCount++;
+                    scoreLocation = new Vector2(GameConstants.DisplayOffset, scoreValuesCount * GameConstants.DisplayOffset);
+                    messages.Add(new Message(string.Format("{0} worths {1} points", score.Name, score.Score), font, scoreLocation));
+                }
             }
         }
+
+
+        private void ClearTable()
+        {
+            messages.Clear();
+            bears.Clear();
+            burger = null;
+        }
+
+        private void SaveScore(string nickName, string pathFile)
+        {
+
+
+            if (File.Exists(pathFile))
+            {
+                scoreTable = LoadScore(pathFile);
+            }
+
+            using (Stream scoreFile = File.Open(pathFile, FileMode.Create))
+            {
+                ScoreValues svCurrent = new ScoreValues();
+                svCurrent.Name = nickName;
+                svCurrent.Score = score;
+                scoreTable.ScoreList.Add(svCurrent);
+                XmlSerializer xmlSer = new XmlSerializer(typeof(ScoreTable));
+                xmlSer.Serialize(scoreFile,scoreTable);
+            }
+        }
+
+        private ScoreTable LoadScore(string pathFile)
+        {
+            if (File.Exists(pathFile))
+            {
+                using (Stream scoreFile = File.Open(pathFile, FileMode.Open))
+                {
+                    XmlSerializer xmlSer = new XmlSerializer(typeof(ScoreTable));
+                    ScoreTable scoreTable = xmlSer.Deserialize(scoreFile) as ScoreTable;
+                    return scoreTable;
+                }
+            }
+            else return null;      
+        }
+
 
         private string GetScoreString(int scoreValue)
         {
             return GameConstants.ScorePrefix + scoreValue;
         }
+
+
+        private void TextInput (KeyboardState keyboardState){
+
+            while (!keyboardState.IsKeyDown(Keys.Enter))
+            foreach (Keys key in keysToCheck)
+            {
+                if (CheckKey(key))
+                {
+                    AddKeyToText(key);
+                    break;
+                }
+            }
+
+        }
+
+        private void AddKeyToText(Keys key)
+        {
+            string newChar = "";
+
+            if (text.Length >= 20 && key != Keys.Back)
+                return;
+
+            switch (key)
+            {
+                case Keys.A:
+                    newChar += "a";
+                    break;
+                case Keys.B:
+                    newChar += "b";
+                    break;
+                case Keys.C:
+                    newChar += "c";
+                    break;
+                case Keys.D:
+                    newChar += "d";
+                    break;
+                case Keys.E:
+                    newChar += "e";
+                    break;
+                case Keys.F:
+                    newChar += "f";
+                    break;
+                case Keys.G:
+                    newChar += "g";
+                    break;
+                case Keys.H:
+                    newChar += "h";
+                    break;
+                case Keys.I:
+                    newChar += "i";
+                    break;
+                case Keys.J:
+                    newChar += "j";
+                    break;
+                case Keys.K:
+                    newChar += "k";
+                    break;
+                case Keys.L:
+                    newChar += "l";
+                    break;
+                case Keys.M:
+                    newChar += "m";
+                    break;
+                case Keys.N:
+                    newChar += "n";
+                    break;
+                case Keys.O:
+                    newChar += "o";
+                    break;
+                case Keys.P:
+                    newChar += "p";
+                    break;
+                case Keys.Q:
+                    newChar += "q";
+                    break;
+                case Keys.R:
+                    newChar += "r";
+                    break;
+                case Keys.S:
+                    newChar += "s";
+                    break;
+                case Keys.T:
+                    newChar += "t";
+                    break;
+                case Keys.U:
+                    newChar += "u";
+                    break;
+                case Keys.V:
+                    newChar += "v";
+                    break;
+                case Keys.W:
+                    newChar += "w";
+                    break;
+                case Keys.X:
+                    newChar += "x";
+                    break;
+                case Keys.Y:
+                    newChar += "y";
+                    break;
+                case Keys.Z:
+                    newChar += "z";
+                    break;
+                case Keys.Space:
+                    newChar += " ";
+                    break;
+                case Keys.Back:
+                    if (text.Length != 0)
+                        text = text.Remove(text.Length - 1);
+                    return;
+            }
+            if (currentKeyboardState.IsKeyDown(Keys.RightShift) ||
+                currentKeyboardState.IsKeyDown(Keys.LeftShift))
+            {
+                newChar = newChar.ToUpper();
+            }
+            text += newChar;
+        }
+
+        private bool CheckKey(Keys theKey)
+        {
+            return lastKeyboardState.IsKeyDown(theKey) && currentKeyboardState.IsKeyUp(theKey);
+        }
+
+
 
         #endregion
     }

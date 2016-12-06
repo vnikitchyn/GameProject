@@ -85,7 +85,7 @@ namespace GameProject
         {
             // burger should only respond to input if it still has health
             if (health > 0)
-
+                
             // move burger using mouse
             {
                 //drawRectangle.X = mouse.X;
